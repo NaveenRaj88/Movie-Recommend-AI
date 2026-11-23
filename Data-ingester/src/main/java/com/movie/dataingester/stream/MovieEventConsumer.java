@@ -22,11 +22,11 @@ public class MovieEventConsumer {
     @KafkaListener(topics = MovieEventProducer.TOPIC, groupId = "movie-ingestion-group")
     public void consumeMovieBatch(List<Movie> movies, Acknowledgment ack) {
         log.info("Received kafka batch of {} movie events", movies.size());
-       Map<Long,Movie> dedupicatedMovies =  movies.stream().collect(Collectors.toMap(Movie::id, movie -> movie,
+        Map<Long, Movie> dedupicatedMovies = movies.stream().collect(Collectors.toMap(Movie::id, movie -> movie,
                 (existing, replacement) -> replacement
         ));
-            int inserted = movieJdbcDao.saveAllBatches(List.of(dedupicatedMovies));
-            log.info("Inserted {} movies into the database.", inserted);
+        int inserted = movieJdbcDao.saveAllBatches(List.of(dedupicatedMovies));
+        log.info("Inserted {} movies into the database.", inserted);
         ack.acknowledge();
 
         log.info("Committed Kafka batch: polled={}, deduplicated={}, inserted={}",
