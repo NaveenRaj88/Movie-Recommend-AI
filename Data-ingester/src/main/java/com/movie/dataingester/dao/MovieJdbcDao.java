@@ -6,6 +6,7 @@ import com.movie.dataingester.model.Movie;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +24,7 @@ public class MovieJdbcDao {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Transactional
     public int saveAllBatches(List<Map<Long, Movie>> batchList) {
         int totalInserted = 0;
         int batchInserted;

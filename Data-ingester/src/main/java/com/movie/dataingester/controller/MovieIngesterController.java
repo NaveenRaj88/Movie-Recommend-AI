@@ -2,6 +2,7 @@ package com.movie.dataingester.controller;
 
 import com.movie.dataingester.dao.MovieJdbcDao;
 import com.movie.dataingester.model.Movie;
+import com.movie.dataingester.stream.MovieEventProducer;
 import com.movie.dataingester.utils.RecordUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -21,6 +22,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Gatherers;
 
@@ -32,6 +34,9 @@ public class MovieIngesterController {
 
     @Autowired
     private MovieJdbcDao movieJdbcDao;
+
+    @Autowired
+    private MovieEventProducer movieEventProducer;
 
 
     CSVFormat format = CSVFormat.DEFAULT.builder()
@@ -58,7 +63,7 @@ public class MovieIngesterController {
         try (CSVParser csvParser = CSVParser.parse(Path.of(fileUrl.toURI()), StandardCharsets.UTF_8, format)) {
             batchList = csvParser.stream()
                     .filter(csvRecord -> {
-                        if(!csvRecord.isConsistent()){
+                        if (!csvRecord.isConsistent()) {
                             log.warn("Inconsistent record: {}", csvRecord);
                             return false;
                         }
@@ -77,8 +82,30 @@ public class MovieIngesterController {
 
 
     @GetMapping("/streamingIngest")
-    public ResponseEntity<String> streamingIngest(@RequestParam(required = true) String fileName){
+    public ResponseEntity<String> streamingIngest(@RequestParam(required = true) String fileName) {
+        URL fileUrl = getClass().getResource(fileName);
+        try (CSVParser csvParser = CSVParser.parse(Path.of(fileUrl.toURI()), StandardCharsets.UTF_8, format)) {
+            AtomicInteger publishedCount = new AtomicInteger(0);
+            csvParser.stream()
+                    .filter(csvRecord -> {
+                        if (!csvRecord.isConsistent()) {
+                            log.warn("Inconsistent record: {}", csvRecord);
+                            return false;
+                        }
+                        return true;
+                    })
+                    .map(this::parseLine)
+                    .forEach(movie -> {
+                        movieEventProducer.publishMovieEvents(movie);
+                        publishedCount.incrementAndGet();
+                    });
+            log.info("Published {} movie events to Kafka topic: {}", publishedCount.get(), MovieEventProducer.TOPIC);
 
+        } catch (IOException | URISyntaxException e) {
+            System.out.println("Error occurred while reading CSV file: " + e.getMessage() + e);
+        }
+        // Implement streaming ingest logic here
+        return ResponseEntity.ok("Streaming ingest completed successfully.");
 
     }
 
