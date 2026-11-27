@@ -33,18 +33,16 @@ public interface SQlQueries {
     String insertMovieEmbeddingsQuery = """
             INSERT INTO movie_embeddings (
                 movie_id, embedding, model_name, content_hash,
-                status, attempt_count, last_error, embedded_at,
+                status,  embedded_at,
                 created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, 'COMPLETED', 1, NULL, CURRENT_TIMESTAMP,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, 'COMPLETED',
+                    ?, CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
             ON CONFLICT (movie_id) DO UPDATE SET
                 embedding = EXCLUDED.embedding,
                 model_name = EXCLUDED.model_name,
                 content_hash = EXCLUDED.content_hash,
                 status = 'COMPLETED',
-                attempt_count = movie_embeddings.attempt_count + 1,
-                last_error = NULL,
                 embedded_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP;
             """;
@@ -66,5 +64,12 @@ public interface SQlQueries {
             WHERE status = 'PENDING'
             ORDER BY id ASC
             LIMIT 100;
+            """;
+
+    String updateOutboxEventStatus = """
+            UPDATE outbox_events
+            SET status = 'PUBLISHED',
+                published_at = CURRENT_TIMESTAMP
+            WHERE id = ?;
             """;
 }

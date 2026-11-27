@@ -38,7 +38,7 @@ public class DataIngesterConfiguration {
 
     @Bean
     public NewTopic movieOutboxEventTopic() {
-        return TopicBuilder.name("movie-outbox-events")
+        return TopicBuilder.name("movie-embedding-events")
                 .partitions(3)
                 .replicas(1)
                 .build();

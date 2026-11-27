@@ -13,6 +13,8 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,11 +30,12 @@ public class MovieEmbeddingEventConsumer {
     private final NomicTextEmbeddingService nomicTextEmbeddingService;
 
 
-    @KafkaListener(topics = "movie-outbox-events", groupId = "outbox-event-group")
+    @KafkaListener(topics = "movie-embedding-events", groupId = "outbox-event-group", properties = {"max.poll.records=1"})
     public void consumeMovieEmbeddingEvents(List<MovieEmbeddingEvent> movieEmbeddingEvents, Acknowledgment ack) {
         log.info("received outbox events of size {}", movieEmbeddingEvents.size());
         List<Long> movieIds = movieEmbeddingEvents.stream().map(MovieEmbeddingEvent::movieId).toList();
         Map<Long, Movie> movies = movieJdbcDao.getMovieRecords(movieIds);
+        List<MovieEmbeddings> movieEmbeddingsList = new ArrayList<>();
         for(MovieEmbeddingEvent mee: movieEmbeddingEvents){
             if(!movies.containsKey(mee.movieId())){
                 log.error("Severe error, Movie with id {} not found in the Movies table", mee.movieId());
@@ -45,11 +48,10 @@ public class MovieEmbeddingEventConsumer {
                     .modelName(MODEL_NAME)
                     .contentHash(Movie.computeEmbeddingHash(movie))
                     .status("COMPLETED")
-                    .attemptCount(entries.getVaglue().attempts()+1)
-                    .lastError(entries.getValue().lastError())
+                    .embeddedAt(LocalDateTime.now())
                     .build();
-
-        }).toList();
+            movieEmbeddingsList.add(movieEmbeddings);
+        }
         int inserted = movieJdbcDao.saveMovieEmbeddings(movieEmbeddingsList);
         log.info("inserted {} records ot the movie embeddings", inserted);
     }

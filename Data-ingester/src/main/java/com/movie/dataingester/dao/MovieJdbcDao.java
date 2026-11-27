@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.sql.PreparedStatement;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.*;
 
 @Slf4j
@@ -101,6 +102,7 @@ public class MovieJdbcDao {
     }
 
 
+    @Transactional
     public int saveMovieEmbeddings(List<MovieEmbeddings> movieEmbeddingsList) {
         int[][] resultArray = new int[0][0];
         if (movieEmbeddingsList != null && !movieEmbeddingsList.isEmpty()) {
@@ -110,6 +112,7 @@ public class MovieJdbcDao {
                 ps.setObject(2, new PGvector(me.embedding()));
                 ps.setString(3, me.modelName());
                 ps.setString(4, me.contentHash());
+                ps.setObject(5, me.embeddedAt());
             });
             log.info("Inserted batch of {} movie embeddings into the database.", movieEmbeddingsList.size());
         }
@@ -121,62 +124,59 @@ public class MovieJdbcDao {
         Map<Long, MovieEmbeddings> resultMap = Collections.emptyMap();
         jdbcTemplate.query(SQlQueries.selectMovieEmbeddingsQuery,
                 ps -> ps.setArray(1, ps.getConnection().createArrayOf("bigint", movieIds.toArray(Long[]::new))),
-                (rs) -> {
-                    while (rs.next()) {
-                        long movieId = rs.getLong("movie_id");
-                        float[] embedding = (float[]) rs.getArray("embedding").getArray();
-                        String modelName = rs.getString("model_name");
-                        String contentHash = rs.getString("content_hash");
-                        String status = rs.getString("status");
-                        Integer attemptCount = rs.getInt("attempt_count");
-                        String lastError = rs.getString("last_error");
-                        LocalDateTime embeddedAt = rs.getTimestamp("embedded_at") != null ? rs.getTimestamp("embedded_at").toLocalDateTime() : null;
-                        LocalDateTime createdAt = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null;
-                        LocalDateTime updatedAt = rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null;
+                rs -> {
+                    long movieId = rs.getLong("movie_id");
+                    float[] embedding = (float[]) rs.getArray("embedding").getArray();
+                    String modelName = rs.getString("model_name");
+                    String contentHash = rs.getString("content_hash");
+                    String status = rs.getString("status");
+                    Integer attemptCount = rs.getInt("attempt_count");
+                    String lastError = rs.getString("last_error");
+                    LocalDateTime embeddedAt = rs.getTimestamp("embedded_at") != null ? rs.getTimestamp("embedded_at").toLocalDateTime() : null;
+                    LocalDateTime createdAt = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null;
+                    LocalDateTime updatedAt = rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null;
 
-                        MovieEmbeddings movieEmbeddings = new MovieEmbeddings(
-                                movieId,
-                                embedding,
-                                modelName,
-                                contentHash,
-                                status,
-                                attemptCount,
-                                lastError,
-                                embeddedAt,
-                                createdAt,
-                                updatedAt
-                        );
-
-                        resultMap.put(movieId, movieEmbeddings);
-                    }
+                    MovieEmbeddings movieEmbeddings = new MovieEmbeddings(
+                            movieId,
+                            embedding,
+                            modelName,
+                            contentHash,
+                            status,
+                            attemptCount,
+                            lastError,
+                            embeddedAt,
+                            createdAt,
+                            updatedAt
+                    );
+                    resultMap.put(movieId, movieEmbeddings);
                 });
         return resultMap;
     }
 
+    @Transactional
     public Map<Long, Movie> getMovieRecords(List<Long> movieIds) {
         Map<Long, Movie> movies = new HashMap<>();
         jdbcTemplate.query(SQlQueries.selectMovieRecords,
                 ps -> ps.setArray(1, ps.getConnection().createArrayOf("bigint", movieIds.toArray(Long[]::new))),
-                (rs) -> {
-                    while (rs.next()) {
-                        long movieId = rs.getLong("id");
-                        String original_language = rs.getString("original_language");
-                        String original_title = rs.getString("original_title");
-                        String[] genre = (String[]) rs.getArray("genre").getArray();
-                        String overview = rs.getString("overview");
-                        String tagline = rs.getString("tagline");
+                rs -> {
+                    long movieId = rs.getLong("id");
+                    String original_language = rs.getString("original_language");
+                    String original_title = rs.getString("original_title");
+                    String[] genre = (String[]) rs.getArray("genre").getArray();
+                    String overview = rs.getString("overview");
+                    String tagline = rs.getString("tagline");
 
-                        Movie movie = Movie.builder()
-                                .id(movieId)
-                                .original_language(original_language)
-                                .original_title(original_title)
-                                .genre(genre)
-                                .overview(overview)
-                                .tagline(tagline)
-                                .build();
+                    Movie movie = Movie.builder()
+                            .id(movieId)
+                            .original_language(original_language)
+                            .original_title(original_title)
+                            .genre(genre)
+                            .overview(overview)
+                            .tagline(tagline)
+                            .build();
 
-                        movies.put(movieId, movie);
-                    }
+                    movies.put(movieId, movie);
+
                 });
         return movies;
     }
@@ -185,45 +185,49 @@ public class MovieJdbcDao {
         Map<Long, OutboxEvent> outboxEventMap = new HashMap<>();
         jdbcTemplate.query(SQlQueries.selectMovieOutBoxEvents,
                 ps -> ps.setArray(1, ps.getConnection().createArrayOf("bigint", ids.toArray(Long[]::new))),
-                (rs) -> {
-                    while (rs.next()) {
-                        OutboxEvent outboxEvent = OutboxEvent.builder()
-                                .id(rs.getLong("id"))
-                                .aggregateType(rs.getString("aggregate_type"))
-                                .aggregateId(rs.getLong("aggregate_id"))
-                                .eventType(rs.getString("event_type"))
-                                .payload(rs.getString("payload"))
-                                .status(OutboxStatusEnum.valueOf(rs.getString("status")))
-                                .attempts(rs.getInt("attempts"))
-                                .createdAt(rs.getObject(rs.getString("created_at"), LocalDateTime.class))
-                                .publishedAt(rs.getObject(rs.getString("published_at"), LocalDateTime.class))
-                                .lastError(rs.getString("last_error"))
-                                .build();
-                        outboxEventMap.put(outboxEvent.id(), outboxEvent);
-                    }
+                rs -> {
+
+                    OutboxEvent outboxEvent = OutboxEvent.builder()
+                            .id(rs.getLong("id"))
+                            .aggregateType(rs.getString("aggregate_type"))
+                            .aggregateId(rs.getLong("aggregate_id"))
+                            .eventType(rs.getString("event_type"))
+                            .payload(rs.getString("payload"))
+                            .status(OutboxStatusEnum.valueOf(rs.getString("status")))
+                            .attempts(rs.getInt("attempts"))
+                            .createdAt(rs.getObject(rs.getString("created_at"), LocalDateTime.class))
+                            .publishedAt(rs.getObject(rs.getString("published_at"), LocalDateTime.class))
+                            .lastError(rs.getString("last_error"))
+                            .build();
+                    outboxEventMap.put(outboxEvent.id(), outboxEvent);
+
                 });
         return outboxEventMap;
     }
 
-    public Map<Long,OutboxEvent> getMovieOutboxEventsBatch(){
+    public Map<Long, OutboxEvent> getMovieOutboxEventsBatch() {
         Map<Long, OutboxEvent> outboxEventMap = new HashMap<>();
-        jdbcTemplate.query(SQlQueries.selectMovieOutBoxEvents, (rs) ->{
-            while(rs.next()){
-                OutboxEvent outboxEvent = OutboxEvent.builder()
-                        .id(rs.getLong("id"))
-                        .aggregateType(rs.getString("aggregate_type"))
-                        .aggregateId(rs.getLong("aggregate_id"))
-                        .eventType(rs.getString("event_type"))
-                        .payload(rs.getString("payload"))
-                        .status(OutboxStatusEnum.valueOf(rs.getString("status")))
-                        .attempts(rs.getInt("attempts"))
-                        .createdAt(rs.getObject(rs.getString("created_at"), LocalDateTime.class))
-                        .publishedAt(rs.getObject(rs.getString("published_at"), LocalDateTime.class))
-                        .lastError(rs.getString("last_error"))
-                        .build();
-                outboxEventMap.put(outboxEvent.id(), outboxEvent);
-            }
-        });
+        jdbcTemplate.query(SQlQueries.selectMovieOutBoxEvents,
+                rs -> {
+                    OutboxEvent outboxEvent = OutboxEvent.builder()
+                            .id(rs.getLong("id"))
+                            .aggregateType(rs.getString("aggregate_type"))
+                            .aggregateId(rs.getLong("aggregate_id"))
+                            .eventType(rs.getString("event_type"))
+                            .payload(rs.getString("payload"))
+                            .status(OutboxStatusEnum.valueOf(rs.getString("status")))
+                            .attempts(rs.getInt("attempts"))
+                            .createdAt(rs.getObject("created_at", OffsetDateTime.class).toLocalDateTime())
+                            .lastError(rs.getString("last_error"))
+                            .build();
+                    outboxEventMap.put(outboxEvent.id(), outboxEvent);
+
+                });
         return outboxEventMap;
+    }
+
+    @Transactional
+    public void updateOutboxEventStatus(Long id) {
+        jdbcTemplate.update(SQlQueries.updateOutboxEventStatus, ps -> ps.setLong(1, id));
     }
 }
