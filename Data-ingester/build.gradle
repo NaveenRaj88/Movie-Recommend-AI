@@ -25,6 +25,7 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     runtimeOnly 'org.postgresql:postgresql'
+    implementation 'com.pgvector:pgvector:0.1.6'
 
     implementation 'org.apache.commons:commons-csv:1.14.1'
 
@@ -34,6 +35,9 @@ dependencies {
 
     // Kafka (spring-boot-starter-kafka already includes spring-kafka + Jackson serialization)
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
+    // langchain 4j dependencies
+    implementation 'dev.langchain4j:langchain4j-ollama-spring-boot4-starter:1.24.0-beta34'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'
