@@ -27,7 +27,7 @@ public class MovieEventConsumer {
         ));
         int inserted = movieJdbcDao.saveAllBatches(List.of(dedupicatedMovies));
         log.info("Inserted {} movies into the database.", inserted);
-        ack.acknowledge();
+
 
         log.info("Committed Kafka batch: polled={}, deduplicated={}, inserted={}",
                 movies.size(), dedupicatedMovies.size(), inserted);
