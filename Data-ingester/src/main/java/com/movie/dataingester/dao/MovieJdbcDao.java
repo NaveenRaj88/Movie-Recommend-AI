@@ -116,7 +116,7 @@ public class MovieJdbcDao {
             });
             log.info("Inserted batch of {} movie embeddings into the database.", movieEmbeddingsList.size());
         }
-        return resultArray.length;
+        return resultArray[0].length;
     }
 
 
@@ -162,7 +162,8 @@ public class MovieJdbcDao {
                     long movieId = rs.getLong("id");
                     String original_language = rs.getString("original_language");
                     String original_title = rs.getString("original_title");
-                    String[] genre = (String[]) rs.getArray("genre").getArray();
+
+                    String[] genre = rs.getArray("genre") != null ? (String[]) rs.getArray("genre").getArray() : null;
                     String overview = rs.getString("overview");
                     String tagline = rs.getString("tagline");
 

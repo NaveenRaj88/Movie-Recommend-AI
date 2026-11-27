@@ -31,5 +31,6 @@ public class MovieEventConsumer {
 
         log.info("Committed Kafka batch: polled={}, deduplicated={}, inserted={}",
                 movies.size(), dedupicatedMovies.size(), inserted);
+        ack.acknowledge();
     }
 }

@@ -40,7 +40,7 @@ public class MovieEmbeddingEventProducer {
                     .embeddingContentHash(objectMapper.readValue(outboxEntries.getValue().payload(), OutboxEventPayload.class).embeddingContentHash())
                     .createdAt(LocalDateTime.now())
                     .build();
-            kafkaTemplate.send(OUTBOX_KAFKA_TOPIC, movieEmbeddingEvent);
+            kafkaTemplate.send(OUTBOX_KAFKA_TOPIC, String.valueOf(movieEmbeddingEvent.movieId()), movieEmbeddingEvent);
             movieJdbcDao.updateOutboxEventStatus(outboxEntries.getKey());
         }
 
