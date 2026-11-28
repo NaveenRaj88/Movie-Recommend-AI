@@ -63,18 +63,23 @@ public class MovieEmbeddingEventConsumer {
 
 
     private float[] getEmbeddingVector(Movie m) {
-        return nomicTextEmbeddingService.createVector(getEmbeddingInputText(m));
+        return nomicTextEmbeddingService.createIndexingVector(getEmbeddingInputText(m));
     }
 
     private String getEmbeddingInputText(Movie m) {
         StringBuilder strb = new StringBuilder();
         strb.append("Title: ").append(m.original_title());
+        strb.append("\n");
         strb.append("Language: ").append(m.original_language());
+        strb.append("\n");
         if (m.genre() != null) {
-            String genreStr = String.join(",", m.genre());
-            strb.append("Genre: ").append(genreStr);
+            String genreStr = String.join(", ", m.genre());
+            strb.append("Genres: ").append(genreStr);
+            strb.append("\n");
         }
-        strb.append("Overview").append(m.overview());
+
+        strb.append("Overview: ").append(m.overview());
+        strb.append("\n");
         strb.append("Tagline: ").append(m.tagline());
         return strb.toString();
     }

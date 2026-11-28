@@ -48,7 +48,7 @@ public interface SQlQueries {
             """;
 
     String selectMovieEmbeddingsQuery = """
-            SELECT movie_id, embedding, model_name, content_hash, status, attempt_count, last_error, embedded_at, created_at, updated_at
+            SELECT movie_id, embedding, model_name, content_hash, status, embedded_at, created_at, updated_at
             FROM movie_embeddings
             WHERE movie_id = ANY (?)
             """;
@@ -71,5 +71,22 @@ public interface SQlQueries {
             SET status = 'PUBLISHED',
                 published_at = CURRENT_TIMESTAMP
             WHERE id = ?;
+            """;
+
+
+    String cosineSearchQuery = """
+            SELECT
+                m.id,
+                m.original_title,
+                m.original_language,
+                m.genre,
+                m.overview,
+                me.embedding <=> CAST(? AS vector) AS cosine_distance
+            FROM movie_embeddings me
+            JOIN movies m ON m.id = me.movie_id
+            WHERE me.status = 'COMPLETED'
+              AND me.embedding IS NOT NULL
+            ORDER BY me.embedding <=> CAST(? AS vector) ASC
+            LIMIT 10;
             """;
 }

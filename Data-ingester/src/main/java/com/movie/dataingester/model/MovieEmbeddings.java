@@ -11,8 +11,6 @@ public record MovieEmbeddings(
         String modelName,
         String contentHash,
         String status,
-        Integer attemptCount,
-        String lastError,
         LocalDateTime embeddedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

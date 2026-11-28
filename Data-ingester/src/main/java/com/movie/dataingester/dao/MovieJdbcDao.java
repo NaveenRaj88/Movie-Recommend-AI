@@ -5,6 +5,7 @@ import com.movie.dataingester.constants.SQlQueries;
 import com.movie.dataingester.model.*;
 import com.pgvector.PGvector;
 import lombok.extern.slf4j.Slf4j;
+import org.postgresql.util.PGobject;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -121,17 +122,19 @@ public class MovieJdbcDao {
 
 
     private Map<Long, MovieEmbeddings> getMovieEmbeddingRecords(List<Long> movieIds) {
-        Map<Long, MovieEmbeddings> resultMap = Collections.emptyMap();
+        Map<Long, MovieEmbeddings> resultMap = new HashMap<>(Collections.emptyMap());
         jdbcTemplate.query(SQlQueries.selectMovieEmbeddingsQuery,
                 ps -> ps.setArray(1, ps.getConnection().createArrayOf("bigint", movieIds.toArray(Long[]::new))),
                 rs -> {
                     long movieId = rs.getLong("movie_id");
-                    float[] embedding = (float[]) rs.getArray("embedding").getArray();
+
+                    PGobject pgObject = (PGobject) rs.getObject("embedding");
+                    PGvector pgVector = new PGvector(pgObject.getValue());
+                    float[] embedding = pgVector.toArray();
+
                     String modelName = rs.getString("model_name");
                     String contentHash = rs.getString("content_hash");
                     String status = rs.getString("status");
-                    Integer attemptCount = rs.getInt("attempt_count");
-                    String lastError = rs.getString("last_error");
                     LocalDateTime embeddedAt = rs.getTimestamp("embedded_at") != null ? rs.getTimestamp("embedded_at").toLocalDateTime() : null;
                     LocalDateTime createdAt = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null;
                     LocalDateTime updatedAt = rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null;
@@ -142,8 +145,6 @@ public class MovieJdbcDao {
                             modelName,
                             contentHash,
                             status,
-                            attemptCount,
-                            lastError,
                             embeddedAt,
                             createdAt,
                             updatedAt
@@ -230,5 +231,27 @@ public class MovieJdbcDao {
     @Transactional
     public void updateOutboxEventStatus(Long id) {
         jdbcTemplate.update(SQlQueries.updateOutboxEventStatus, ps -> ps.setLong(1, id));
+    }
+
+    @Transactional
+    public List<SemanticSearchResponse> getSearchResponse(float[] vector) {
+        PGvector pGvector = new PGvector(vector);
+        List<SemanticSearchResponse> searchResponses = jdbcTemplate.query(SQlQueries.cosineSearchQuery,
+                ps -> {
+                    ps.setObject(1, pGvector);
+                    ps.setObject(2,pGvector);
+
+                },
+                (rs, rowNum) -> SemanticSearchResponse.builder()
+                        .id(rs.getLong("id"))
+                        .original_title(rs.getString("original_title"))
+                        .genres(rs.getArray("genre") != null ?
+                                (String[]) rs.getArray("genre").getArray() : null )
+                        .overview(rs.getString("overview"))
+                        .cosineDistance(rs.getDouble("cosine_distance"))
+                        .original_language(rs.getString("original_language"))
+                        .build()
+        );
+        return searchResponses;
     }
 }
